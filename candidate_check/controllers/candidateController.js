@@ -127,7 +127,7 @@ async function updateProfile(req, res)  {
         res.status(500).json({ message: "Failed to update profile", error: error.message });
     }
 };
-
+//Get all hiring events
 const getAllHiring = async (req, res) => {
     try {
         const allHiring = await Hiring.find().sort({ createdAt: -1 }); // Newest first
@@ -138,6 +138,7 @@ const getAllHiring = async (req, res) => {
     }
 };
 
+// Get rounds by Hiring Id
 const getRoundsByHiringId = async (req, res) => {
     try {
         const { hiringId } = req.params;
@@ -192,8 +193,25 @@ const applyToHiring = async (req, res) => {
     }
 };
 
+// Get Candidate All Record details
+const getCandidateRecords = async (req, res) => {
+    try {
+        const candidateId = req.token.id;
+
+        const records = await Record.find({ candidateId })
+            .populate('hiringId', 'name ctc type')
+            .populate('roundId', 'roundType roundNumber status')
+            .select('-__v');
+
+        res.status(200).json({ message: "Candidate records fetched successfully", records });
+    } catch (error) {
+        res.status(500).json({ message: "Failed to fetch candidate records", error: error.message });
+    }
+};
 
 
 
 
-module.exports={signup, login, getProfile, updateProfile, getAllHiring, getRoundsByHiringId,applyToHiring};
+
+module.exports={signup, login, getProfile, updateProfile, getAllHiring, getRoundsByHiringId,applyToHiring,getCandidateRecords};
+
