@@ -6,20 +6,41 @@ const Round = require('../models/Round');
 const Record = require('../models/Record');
 
 // POST /signup
-async function signup (req, res)  {
+async function signup(req, res) {
     try {
-        const { name, email, password, phone, age, address, linkedIn, gender } = req.body;
+        const candidate = req.body;
 
-        const existing = await Candidate.findOne({ $or: [{ email }, { phone }, { linkedIn }] });
-        if (existing) return res.status(400).json({ message: "Candidate with email/phone/linkedin already exists" });
-
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        const newCandidate = await Candidate.create({
-            name, email, password: hashedPassword, phone, age, address, linkedIn, gender
+        // Check if any existing candidate with same email, phone or LinkedIn
+        const existing = await Candidate.findOne({
+            $or: [
+                { email: candidate.email },
+                { phone: candidate.phone },
+                { linkedIn: candidate.linkedIn }
+            ]
         });
 
-        const token = jwt.sign({ id: newCandidate._id, role: 'candidate' }, process.env.JWT_SECRET_KEY, { expiresIn: '7d' });
+        if (existing) {
+            const conflicts = [];
+            if (existing.email === candidate.email) conflicts.push("Email");
+            if (existing.phone === candidate.phone) conflicts.push("Phone");
+            if (existing.linkedIn === candidate.linkedIn) conflicts.push("LinkedIn URL");
+
+            return res.status(400).json({
+                message: `Candidate already registered with given ${conflicts.join(", ")}`
+            });
+        }
+        
+        const hashedPassword = await bcrypt.hash(candidate.password, 10);
+        candidate.password = hashedPassword;
+
+        const newCandidate = await Candidate.create(candidate);
+
+        // Generate JWT token
+        const token = jwt.sign(
+            { id: newCandidate._id, role: 'candidate' },
+            process.env.JWT_SECRET_KEY,
+            { expiresIn: '1h' }
+        );
 
         res.status(201).json({
             message: "Signup successful",
@@ -35,22 +56,30 @@ async function signup (req, res)  {
             }
         });
     } catch (error) {
-        res.status(500).json({ message: "Signup failed", error: error.message });
+        res.status(500).json({ message: "Internal Server Error", error: error.message });
     }
-};
+}
 
 // POST /login
-async function login  (req, res)  {
+async function login(req, res) {
     try {
         const { email, password } = req.body;
 
         const candidate = await Candidate.findOne({ email });
-        if (!candidate) return res.status(400).json({ message: "Invalid email or password" });
+        if (!candidate) {
+            return res.status(400).json({ message: "Candidate not found with given email" });
+        }
 
         const isMatch = await bcrypt.compare(password, candidate.password);
-        if (!isMatch) return res.status(400).json({ message: "Invalid email or password" });
+        if (!isMatch) {
+            return res.status(400).json({ message: "Incorrect password, try again" });
+        }
 
-        const token = jwt.sign({ id: candidate._id, role: 'candidate' }, process.env.JWT_SECRET_KEY, { expiresIn: '7d' });
+        const token = jwt.sign(
+            { id: candidate._id, role: 'candidate' },
+            process.env.JWT_SECRET_KEY,
+            { expiresIn: '1h' }
+        );
 
         res.status(200).json({
             message: "Login successful",
@@ -66,9 +95,10 @@ async function login  (req, res)  {
             }
         });
     } catch (error) {
-        res.status(500).json({ message: "Login failed", error: error.message });
+        res.status(500).json({ message: "Internal Server Error", error: error.message });
     }
-};
+}
+
 
 // GET /profile
 async function getProfile  (req, res)  {
@@ -161,6 +191,7 @@ const applyToHiring = async (req, res) => {
         res.status(500).json({ message: "Server error while applying", error: err.message });
     }
 };
+
 
 
 
